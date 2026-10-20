@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useInvoiceActions } from "@/hooks/useInvoices";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, PlusCircle } from "lucide-react";
@@ -53,6 +53,11 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
   const [isListing, setIsListing] = useState(false);
+  const [timeZone, setTimeZone] = useState("your local timezone");
+
+  useEffect(() => {
+    setTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "local time");
+  }, []);
 
   const parsedValue = useMemo(
     () => parseFloat(faceValue.replace(/,/g, "")) || 0,
@@ -91,18 +96,22 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       return;
     }
 
-    const selectedDate = new Date(dueDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // A date-only selection is an invoice calendar date, not a local instant.
+    // Keep comparisons and the on-chain timestamp anchored at UTC midnight.
+    const selectedDate = new Date(`${dueDate}T00:00:00.000Z`);
+    const now = new Date();
+    const today = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
     if (selectedDate.getTime() <= today.getTime()) {
       setError("Due date must be in the future");
       return;
     }
 
     const minDate = new Date(today);
-    minDate.setDate(minDate.getDate() + 7);
+    minDate.setUTCDate(minDate.getUTCDate() + 7);
     const maxDate = new Date(today);
-    maxDate.setDate(maxDate.getDate() + 365);
+    maxDate.setUTCDate(maxDate.getUTCDate() + 365);
     if (selectedDate.getTime() < minDate.getTime()) {
       setError("Due date must be at least 7 days from today");
       return;
@@ -124,7 +133,9 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       const faceValueStroops = BigInt(
         Math.floor(parsedValue * 10_000_000),
       ).toString();
-      const dueDateTimestamp = Math.floor(new Date(dueDate).getTime() / 1000);
+      const dueDateTimestamp = Math.floor(
+        new Date(`${dueDate}T00:00:00.000Z`).getTime() / 1000,
+      );
 
       const response = await createInvoice({
         buyer,
@@ -399,6 +410,9 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
               <span className="text-slate-500">Due Date:</span>
               <span className="text-white">{dueDate}</span>
             </div>
+            <p className="text-[10px] leading-4 text-slate-500">
+              Stored as {dueDate} 00:00 UTC. Your local timezone is {timeZone}.
+            </p>
           </div>
           {error && (
             <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2">
