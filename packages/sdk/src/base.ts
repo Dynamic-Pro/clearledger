@@ -322,7 +322,10 @@ export class BaseContractClient {
       : 0;
     const retval = sim.result?.retval;
     let expectedResult: unknown = undefined;
-    if (retval) {
+    // Soroban encodes both `()` and `None` as scvVoid. Treat these as a
+    // successful invocation with no decoded value instead of passing them to
+    // the generic native-value decoder.
+    if (retval && retval.switch() !== xdr.ScValType.scvVoid()) {
       try {
         expectedResult = scValToNative(retval);
       } catch {

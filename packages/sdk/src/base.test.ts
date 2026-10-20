@@ -305,6 +305,28 @@ describe("BaseContractClient", () => {
       expect(result.estimatedFeeXlm).toBe("0.0000200");
     });
 
+    it.each(["void method", "optional None result"])(
+      "returns no decoded value for a %s",
+      async () => {
+        mockServer.simulateTransaction.mockResolvedValue({
+          result: { retval: xdr.ScVal.scvVoid() },
+          transactionData: {
+            getReadOnly: () => [],
+            getReadWrite: () => [],
+          },
+          minResourceFee: "0",
+        });
+
+        const result = await client.simulateTransaction(
+          "test_method",
+          [],
+          "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+        );
+
+        expect(result.expectedResult).toBeUndefined();
+      },
+    );
+
     it("falls back to the raw ScVal when scValToNative cannot decode the result", async () => {
       vi.mocked(scValToNative).mockImplementationOnce(() => {
         throw new Error("unsupported scval");
